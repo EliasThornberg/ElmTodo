@@ -1,28 +1,34 @@
-import Html exposing (Html, button, div, text, ul, li, input, span)
-import Html.Attributes exposing (type_, style, checked, id)
+import Html exposing (Html, button, div, text, ul, li, input, span, label, fieldset)
+import Html.Attributes exposing (type_, style, checked, id, name, value)
 import Html.Events exposing (onClick, onInput)
 import Html.Keyed as Keyed
 
 main =
   Html.beginnerProgram { model = model, view = view, update = update }
 
-type alias Todo = { text: String, completed: Bool, id: Int }
-type alias Model = { items: List Todo, text: String, currentId: Int}
+type alias Todo = { text: String, status: Status, id: Int }
+type alias Model = { items: List Todo, text: String, currentId: Int, filterStatus: Status}
 
-model : Model
-model = { items= [], text = "", currentId = 0}
+type Status
+  = Completed
+  | Active
+  | None
 
 type Msg 
   = AddTodo
   | DeleteTodo Int
   | CompleteTodo Int
   | AddText String
+  | AddFilter Status
+
+model : Model
+model = { items= [], text = "", currentId = 0, filterStatus = Active}
 
 update : Msg -> Model -> Model
 update msg model =
   case msg of
     AddTodo ->
-      {model | items = model.items ++ [{text = model.text, id = model.currentId + 1, completed=False}], currentId = model.currentId + 1}
+      {model | items = model.items ++ [{text = model.text, id = model.currentId + 1, status= Active}], currentId = model.currentId + 1, text = ""}
 
     DeleteTodo id ->
       {model | items = List.filter (\m -> m.id /= id) model.items}
@@ -32,37 +38,64 @@ update msg model =
     
     AddText s ->
       {model | text = s}
+    
+    AddFilter f ->
+      {model | filterStatus = f}
 
-setTodoCompleted: Int -> Todo -> Todo
-setTodoCompleted id todo =
-  if todo.id == id then {todo | completed = True} else todo
-
-
+-- View
 view : Model -> Html Msg
 view model =
   div [style divStyle][
-    input [ onInput AddText][]
+    input [ onInput AddText, value model.text][]
     ,button [ onClick AddTodo ][text "Add todo"]
-    ,buildTodoList (List.filter showActiveTodo model.items)]
+    ,filterContainer
+    ,todoListContainer model.items model.filterStatus]
 
-showActiveTodo: Todo -> Bool
-showActiveTodo t =
-  t.completed == False
+--- TodoList
+todoListContainer: List Todo -> Status -> Html Msg
+todoListContainer xs f =
+  div [][ Keyed.ul [style ulStyle] (
+      xs 
+      |> List.filter (\m -> m.status == f || f == None)
+      |> List.map todoListItem
+    )]
 
-buildTodoList: List Todo -> Html Msg
-buildTodoList list =
-    Keyed.ul [style ulStyle] (List.map buildTodoListItem list)
-
-buildTodoListItem: Todo -> ( String, Html Msg )
-buildTodoListItem t =
+todoListItem: Todo -> ( String, Html Msg )
+todoListItem t =
   (toString t.id , li []
     [
-      input [type_ "Checkbox", onClick (CompleteTodo t.id), checked t.completed][]
+      input [type_ "Checkbox", onClick (CompleteTodo t.id), checked (t.status == Completed)][]
       ,text t.text
       ,button [onClick (DeleteTodo t.id), style removeButtonStyle][text "X"]
     ])
 
+setTodoCompleted: Int -> Todo -> Todo
+setTodoCompleted id todo =
+  if todo.id == id then {todo | status = Completed} else todo
 
+-- Filter
+filterContainer: Html Msg
+filterContainer =
+  fieldset []
+  [
+    label []
+      [
+        input [type_ "radio", name "filter", onClick (AddFilter Completed)][],
+        text "Completed"
+      ]
+    ,label[]
+      [
+        input [type_ "radio", name "filter", onClick (AddFilter Active)][],
+        text "Active"
+      ]
+    ,label[]
+      [
+        input [type_ "radio", name "filter", onClick (AddFilter None)][],
+        text "None"
+      ]
+  ]
+
+-- Style
 ulStyle: List(String, String)
 ulStyle =
   [
